@@ -1,0 +1,109 @@
+import os
+from PIL import Image
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn import metrics
+import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, confusion_matrix, precision_score, recall_score
+import tensorflow as tf
+import joblib
+
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Restrict TensorFlow to allocate only a fraction of GPU memory
+        tf.config.experimental.set_virtual_device_configuration(gpus[0], [
+            tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])  # Specify the memory limit (in MB)
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        print(e)
+# Define the directory path where your images are located
+parent_folder_path = 'E:/semester6/Machine Learning/project/archive (2)'
+
+image_list = []
+image_labels = []
+x = -1
+
+# Iterate over the subfolders in the parent directory
+for folder_1 in os.listdir(parent_folder_path):
+    folder_1_path = os.path.join(parent_folder_path, folder_1)
+    if os.path.isdir(folder_1_path):
+        # Iterate over the nested subfolders
+        for folder_2 in os.listdir(folder_1_path):
+            folder_2_path = os.path.join(folder_1_path, folder_2)
+            if os.path.isdir(folder_2_path):
+                x += 1
+                # Iterate over the files in the nested folder
+                for filename in os.listdir(folder_2_path):
+                    if filename.endswith(".JPG") or filename.endswith(".png"):
+                        file_path = os.path.join(folder_2_path, filename)
+                        image = Image.open(file_path).convert("L")
+                        image = image.resize((224, 224))  # Resize the image to a smaller resolution
+                        image_list.append(np.array(image))
+                        image_labels.append(x)
+print(x)
+# Convert the image list and labels to NumPy arrays
+image_array = np.array(image_list)
+label_array = np.array(image_labels)
+
+# Check if the dataset has enough samples
+if len(image_array) == 0:
+    print("Error: Dataset has no samples.")
+else:
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(image_array, label_array, test_size=0.2, random_state=42)
+
+    # Flatten the image data for training
+    X_train_flat = X_train.reshape(X_train.shape[0], -1)
+
+    # Create and train the Naive Bayes classifier
+    naive_bayes = GaussianNB()
+    naive_bayes.fit(X_train_flat, y_train)
+
+    # Save the trained model
+    model_filename = 'naive_bayes_model.joblib'
+    joblib.dump(naive_bayes, model_filename)
+    print(f"Trained model saved as {model_filename}")
+
+    # Flatten the image data for testing
+    X_test_flat = X_test.reshape(X_test.shape[0], -1)
+
+    # Predict the labels for the test set
+    y_pred = naive_bayes.predict(X_test_flat)
+
+    # Calculate the accuracy of the classifier
+    accuracy = metrics.accuracy_score(y_test, y_pred)
+    print("Accuracy:", accuracy)
+    
+    # Calculate the F1 score
+    f1 = f1_score(y_test, y_pred, average='weighted')
+    print("F1 Score:", f1)
+
+    # Calculate the confusion matrix
+    cm = confusion_matrix(y_test, y_pred)
+    print("Confusion Matrix:")
+    print(cm)
+
+    # Calculate the precision score
+    precision = precision_score(y_test, y_pred, average='weighted')
+    print("Precision:", precision)
+
+    # Calculate the recall score
+    recall = recall_score(y_test, y_pred, average='weighted')
+    print("Recall:", recall)
+
+
+# # Display a few images from the training set
+# num_images_to_display = 5
+# fig, axes = plt.subplots(1, num_images_to_display, figsize=(10, 4))
+
+# for i in range(num_images_to_display):
+#     axes[i].imshow(X_train[i], cmap='gray')
+#     axes[i].set_title(f"Label: {y_train[i]}")
+#     axes[i].axis('off')
+
+# plt.tight_layout()
+# plt.show()
